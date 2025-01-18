@@ -1,13 +1,14 @@
 import streamlit as st
-from pydub import AudioSegment
+import cv2
+import os
+import tempfile
+import subprocess
 import speech_recognition as sr
 from googletrans import Translator
 from gtts import gTTS
-import os
-import tempfile
 from io import BytesIO
 
-# Function to extract audio from video using pydub
+# Function to extract audio from video using opencv-python and ffmpeg-python
 def extract_audio(video_file):
     temp_dir = tempfile.mkdtemp()
     audio_path = os.path.join(temp_dir, "temp_audio.wav")
@@ -17,9 +18,18 @@ def extract_audio(video_file):
     with open(video_path, "wb") as f:
         f.write(video_file.getbuffer())
 
-    # Use pydub to extract audio
-    video = AudioSegment.from_file(video_path)
-    video.export(audio_path, format="wav")
+    # Extract audio using ffmpeg command
+    command = [
+        'ffmpeg',
+        '-i', video_path,  # Input video file
+        '-vn',  # Disable video recording
+        '-acodec', 'pcm_s16le',  # Set audio codec
+        '-ar', '16000',  # Set audio sample rate
+        '-ac', '1',  # Set audio channels
+        audio_path  # Output audio file path
+    ]
+    
+    subprocess.run(command, check=True)
     return audio_path
 
 # Function to recognize speech and detect language
