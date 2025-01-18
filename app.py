@@ -1,16 +1,24 @@
-
 import streamlit as st
-from moviepy.editor import VideoFileClip
+import ffmpeg
 import speech_recognition as sr
 from googletrans import Translator
 from gtts import gTTS
 import os
+import tempfile
+from io import BytesIO
 
-# Function to extract audio from video
-def extract_audio(video_path):
-    video = VideoFileClip(video_path)
-    audio_path = "temp_audio.wav"
-    video.audio.write_audiofile(audio_path)
+# Function to extract audio from video using ffmpeg
+def extract_audio(video_file):
+    # Create a temporary directory to store the extracted audio
+    temp_dir = tempfile.mkdtemp()
+    audio_path = os.path.join(temp_dir, "temp_audio.wav")
+    
+    # Save the uploaded video file in a temporary path
+    with open(os.path.join(temp_dir, "uploaded_video.mp4"), "wb") as f:
+        f.write(video_file.getbuffer())
+
+    # Use ffmpeg to extract audio
+    ffmpeg.input(os.path.join(temp_dir, "uploaded_video.mp4")).output(audio_path).run()
     return audio_path
 
 # Function to recognize speech and detect language
@@ -19,12 +27,16 @@ def transcribe_audio(audio_path):
     with sr.AudioFile(audio_path) as source:
         audio = recognizer.record(source)
     # Recognize and detect language
-    text = recognizer.recognize_google(audio, show_all=True)
-    if text:
-        transcript = text['alternative'][0]['transcript']
-        detected_language = text.get('language', 'unknown')
-        return transcript, detected_language
-    return None, None
+    try:
+        text = recognizer.recognize_google(audio, show_all=True)
+        if text:
+            transcript = text['alternative'][0]['transcript']
+            detected_language = text.get('language', 'unknown')
+            return transcript, detected_language
+    except sr.UnknownValueError:
+        return None, None
+    except sr.RequestError:
+        return None, None
 
 # Function to translate text
 def translate_text(text, target_language):
@@ -49,7 +61,7 @@ if uploaded_file:
 
     # Extract audio
     with st.spinner("Extracting audio..."):
-        audio_path = extract_audio(uploaded_file.name)
+        audio_path = extract_audio(uploaded_file)
         st.success("Audio extracted!")
 
     # Transcribe and detect language
@@ -64,10 +76,10 @@ if uploaded_file:
     # Select target language
     target_language = st.selectbox(
         "Select the language to translate to",
-        ["en","te", "es", "fr", "de", "hi", "zh", "ja", "ar"]  # Add more language codes
+        ["en", "te", "es", "fr", "de", "hi", "zh", "ja", "ar"]  # Add more language codes if needed
     )
 
-    # Translate text
+    # Translate text and convert to speech
     if st.button("Translate and Convert to Audio"):
         with st.spinner("Translating text..."):
             translated_text = translate_text(transcript, target_language)
@@ -85,6 +97,3 @@ if uploaded_file:
                         mime="audio/mp3"
                     )
                 st.success("Translation complete!")
-
-
-
