@@ -1,110 +1,457 @@
 import streamlit as st
-import cv2
 import os
 import tempfile
 import subprocess
+import uuid
+
 import speech_recognition as sr
-from googletrans import Translator
+
+from deep_translator import GoogleTranslator
 from gtts import gTTS
-from io import BytesIO
 
-# Function to extract audio from video using opencv-python and ffmpeg-python
+# =========================================================
+# PAGE CONFIG
+# =========================================================
+st.set_page_config(
+    page_title="AI Video Language Translator",
+    page_icon="🎬",
+    layout="wide"
+)
+
+# =========================================================
+# PROFESSIONAL CSS
+# =========================================================
+st.markdown("""
+<style>
+
+/* Main Background */
+.stApp {
+
+    background: linear-gradient(
+        135deg,
+        #0f172a,
+        #111827,
+        #1e293b
+    );
+
+    color: white;
+
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Title */
+.main-title {
+
+    text-align: center;
+
+    font-size: 4rem;
+
+    font-weight: 800;
+
+    color: white;
+
+    margin-top: 10px;
+
+    text-shadow:
+        0px 0px 15px rgba(59,130,246,0.7),
+        0px 0px 35px rgba(124,58,237,0.4);
+}
+
+/* Subtitle */
+.subtitle {
+
+    text-align: center;
+
+    font-size: 1.2rem;
+
+    color: #cbd5e1;
+
+    margin-bottom: 40px;
+}
+
+/* Upload Box */
+.stFileUploader {
+
+    background: rgba(255,255,255,0.05);
+
+    border-radius: 15px;
+
+    padding: 10px;
+}
+
+/* Button */
+div.stButton > button {
+
+    width: 100%;
+
+    background: linear-gradient(
+        90deg,
+        #2563eb,
+        #7c3aed
+    );
+
+    color: white;
+
+    border: none;
+
+    border-radius: 15px;
+
+    padding: 15px;
+
+    font-size: 18px;
+
+    font-weight: bold;
+
+    transition: 0.3s ease;
+}
+
+/* Hover */
+div.stButton > button:hover {
+
+    transform: scale(1.02);
+
+    box-shadow:
+        0px 0px 25px rgba(59,130,246,0.5);
+}
+
+/* Select Box */
+.stSelectbox div[data-baseweb="select"] {
+
+    background: rgba(255,255,255,0.08);
+
+    border-radius: 15px;
+}
+
+/* Audio */
+audio {
+
+    width: 100%;
+}
+
+/* Footer */
+.footer {
+
+    text-align: center;
+
+    color: #94a3b8;
+
+    margin-top: 50px;
+
+    padding: 20px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# HEADER
+# =========================================================
+st.markdown("""
+<div class="main-title">
+🎬 AI Video Language Translator
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="subtitle">
+Upload a video, extract speech, translate it into another language,
+and generate translated voice audio using AI.
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# LANGUAGE OPTIONS
+# =========================================================
+languages = {
+    "English": "en",
+    "Telugu": "te",
+    "Hindi": "hi",
+    "Spanish": "es",
+    "French": "fr",
+    "German": "de",
+    "Chinese": "zh-cn",
+    "Japanese": "ja",
+    "Arabic": "ar",
+    "Russian": "ru"
+}
+
+# =========================================================
+# FILE UPLOAD
+# =========================================================
+uploaded_file = st.file_uploader(
+    "📂 Upload Video File",
+    type=["mp4", "mkv", "avi", "mov"]
+)
+
+# =========================================================
+# TARGET LANGUAGE
+# =========================================================
+target_language_name = st.selectbox(
+    "🌍 Select Target Language",
+    list(languages.keys())
+)
+
+target_language = languages[target_language_name]
+
+# =========================================================
+# EXTRACT AUDIO
+# =========================================================
 def extract_audio(video_file):
+
     temp_dir = tempfile.mkdtemp()
-    audio_path = os.path.join(temp_dir, "temp_audio.wav")
-    
-    # Save the uploaded video file in a temporary path
-    video_path = os.path.join(temp_dir, "uploaded_video.mp4")
-    with open(video_path, "wb") as f:
-        f.write(video_file.getbuffer())
 
-    # Extract audio using ffmpeg command
-    command = [
-        'ffmpeg',
-        '-i', video_path,  # Input video file
-        '-vn',  # Disable video recording
-        '-acodec', 'pcm_s16le',  # Set audio codec
-        '-ar', '16000',  # Set audio sample rate
-        '-ac', '1',  # Set audio channels
-        audio_path  # Output audio file path
-    ]
-    
-    subprocess.run(command, check=True)
-    return audio_path
+    unique_id = str(uuid.uuid4())
 
-# Function to recognize speech and detect language
-def transcribe_audio(audio_path):
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(audio_path) as source:
-        audio = recognizer.record(source)
-    # Recognize and detect language
-    try:
-        text = recognizer.recognize_google(audio, show_all=True)
-        if text:
-            transcript = text['alternative'][0]['transcript']
-            detected_language = text.get('language', 'unknown')
-            return transcript, detected_language
-    except sr.UnknownValueError:
-        return None, None
-    except sr.RequestError:
-        return None, None
-
-# Function to translate text
-def translate_text(text, target_language):
-    translator = Translator()
-    translated_text = translator.translate(text, dest=target_language).text
-    return translated_text
-
-# Function to convert text to speech
-def text_to_speech(text, lang):
-    tts = gTTS(text=text, lang=lang)
-    output_path = "translated_audio.mp3"
-    tts.save(output_path)
-    return output_path
-
-# Streamlit UI
-st.title("Video Language Translator")
-
-# File upload
-uploaded_file = st.file_uploader("Upload a video file", type=["mp4", "mkv", "avi", "mov"])
-if uploaded_file:
-    st.success("Video uploaded successfully!")
-
-    # Extract audio
-    with st.spinner("Extracting audio..."):
-        audio_path = extract_audio(uploaded_file)
-        st.success("Audio extracted!")
-
-    # Transcribe and detect language
-    with st.spinner("Transcribing and detecting language..."):
-        transcript, detected_language = transcribe_audio(audio_path)
-        if transcript:
-            st.write("Detected Language:", detected_language)
-            st.write("Transcript:", transcript)
-        else:
-            st.error("Failed to transcribe audio.")
-
-    # Select target language
-    target_language = st.selectbox(
-        "Select the language to translate to",
-        ["en", "te", "es", "fr", "de", "hi", "zh", "ja", "ar"]  # Add more language codes if needed
+    video_path = os.path.join(
+        temp_dir,
+        f"{unique_id}.mp4"
     )
 
-    # Translate text and convert to speech
-    if st.button("Translate and Convert to Audio"):
-        with st.spinner("Translating text..."):
-            translated_text = translate_text(transcript, target_language)
-            st.write("Translated Text:", translated_text)
+    audio_path = os.path.join(
+        temp_dir,
+        f"{unique_id}.wav"
+    )
 
-            # Convert to audio
-            with st.spinner("Generating audio..."):
-                output_path = text_to_speech(translated_text, target_language)
-                st.audio(output_path)
-                with open(output_path, "rb") as file:
-                    st.download_button(
-                        label="Download Translated Audio",
-                        data=file,
-                        file_name="translated_audio.mp3",
-                        mime="audio/mp3"
-                    )
-                st.success("Translation complete!")
+    # Save uploaded video
+    with open(video_path, "wb") as f:
+
+        f.write(video_file.getbuffer())
+
+    # FFmpeg command
+    command = [
+
+        "ffmpeg",
+
+        "-i", video_path,
+
+        "-vn",
+
+        "-acodec", "pcm_s16le",
+
+        "-ar", "16000",
+
+        "-ac", "1",
+
+        audio_path
+    ]
+
+    subprocess.run(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=True
+    )
+
+    return audio_path, temp_dir
+
+# =========================================================
+# TRANSCRIBE AUDIO
+# =========================================================
+def transcribe_audio(audio_path):
+
+    recognizer = sr.Recognizer()
+
+    with sr.AudioFile(audio_path) as source:
+
+        audio = recognizer.record(source)
+
+    try:
+
+        transcript = recognizer.recognize_google(audio)
+
+        return transcript
+
+    except sr.UnknownValueError:
+
+        return None
+
+    except sr.RequestError:
+
+        return None
+
+# =========================================================
+# TRANSLATE TEXT
+# =========================================================
+def translate_text(text, target_language):
+
+    translated_text = GoogleTranslator(
+        source='auto',
+        target=target_language
+    ).translate(text)
+
+    return translated_text
+
+# =========================================================
+# TEXT TO SPEECH
+# =========================================================
+def text_to_speech(text, language):
+
+    temp_dir = tempfile.mkdtemp()
+
+    output_path = os.path.join(
+        temp_dir,
+        "translated_audio.mp3"
+    )
+
+    tts = gTTS(
+        text=text,
+        lang=language
+    )
+
+    tts.save(output_path)
+
+    return output_path
+
+# =========================================================
+# MAIN BUTTON
+# =========================================================
+if st.button("🚀 Translate Video"):
+
+    if uploaded_file is None:
+
+        st.warning(
+            "Please upload a video file."
+        )
+
+    else:
+
+        temp_dir = None
+
+        try:
+
+            # ============================================
+            # AUDIO EXTRACTION
+            # ============================================
+            with st.spinner(
+                "🎵 Extracting audio from video..."
+            ):
+
+                audio_path, temp_dir = extract_audio(
+                    uploaded_file
+                )
+
+            st.success(
+                "Audio extracted successfully!"
+            )
+
+            # ============================================
+            # TRANSCRIPTION
+            # ============================================
+            with st.spinner(
+                "📝 Transcribing speech..."
+            ):
+
+                transcript = transcribe_audio(
+                    audio_path
+                )
+
+            if not transcript:
+
+                st.error(
+                    "❌ Failed to transcribe audio."
+                )
+
+                st.stop()
+
+            st.subheader(
+                "📄 Transcript"
+            )
+
+            st.write(transcript)
+
+            # ============================================
+            # TRANSLATION
+            # ============================================
+            with st.spinner(
+                "🌍 Translating text..."
+            ):
+
+                translated_text = translate_text(
+                    transcript,
+                    target_language
+                )
+
+            st.subheader(
+                "🌐 Translated Text"
+            )
+
+            st.write(translated_text)
+
+            # ============================================
+            # GENERATE AUDIO
+            # ============================================
+            with st.spinner(
+                "🔊 Generating translated audio..."
+            ):
+
+                translated_audio = text_to_speech(
+                    translated_text,
+                    target_language
+                )
+
+            st.success(
+                "✅ Translation completed!"
+            )
+
+            # ============================================
+            # AUDIO PLAYER
+            # ============================================
+            st.subheader(
+                "🎧 Listen to Translated Audio"
+            )
+
+            st.audio(translated_audio)
+
+            # ============================================
+            # DOWNLOAD BUTTON
+            # ============================================
+            with open(
+                translated_audio,
+                "rb"
+            ) as audio_file:
+
+                st.download_button(
+                    label="⬇ Download Audio",
+                    data=audio_file,
+                    file_name="translated_audio.mp3",
+                    mime="audio/mp3"
+                )
+
+        except subprocess.CalledProcessError:
+
+            st.error(
+                "❌ FFmpeg failed to process the video."
+            )
+
+        except Exception as e:
+
+            st.error(
+                f"❌ Error:\n\n{str(e)}"
+            )
+
+        finally:
+
+            try:
+
+                if temp_dir and os.path.exists(temp_dir):
+
+                    for file in os.listdir(temp_dir):
+
+                        os.remove(
+                            os.path.join(temp_dir, file)
+                        )
+
+                    os.rmdir(temp_dir)
+
+            except:
+                pass
+
+# =========================================================
+# FOOTER
+# =========================================================
+st.markdown("""
+<div class="footer">
+Built with ❤️ using Streamlit, FFmpeg,
+Speech Recognition, Deep Translator & gTTS
+</div>
+""", unsafe_allow_html=True)
