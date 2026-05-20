@@ -4,3 +4,4 @@ deep-translator
 gtts
 ffmpeg-python
 pydub
+imageio-ffmpeg
