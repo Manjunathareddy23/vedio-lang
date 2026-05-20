@@ -19,12 +19,12 @@ st.set_page_config(
 )
 
 # =========================================================
-# PROFESSIONAL CSS
+# PROFESSIONAL UI
 # =========================================================
 st.markdown("""
 <style>
 
-/* Main Background */
+/* Main App */
 .stApp {
 
     background: linear-gradient(
@@ -39,7 +39,7 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* Title */
+/* Main Title */
 .main-title {
 
     text-align: center;
@@ -62,14 +62,14 @@ st.markdown("""
 
     text-align: center;
 
-    font-size: 1.2rem;
-
     color: #cbd5e1;
+
+    font-size: 1.2rem;
 
     margin-bottom: 40px;
 }
 
-/* Upload Box */
+/* Upload */
 .stFileUploader {
 
     background: rgba(255,255,255,0.05);
@@ -77,6 +77,14 @@ st.markdown("""
     border-radius: 15px;
 
     padding: 10px;
+}
+
+/* Select Box */
+.stSelectbox div[data-baseweb="select"] {
+
+    background: rgba(255,255,255,0.08);
+
+    border-radius: 15px;
 }
 
 /* Button */
@@ -105,21 +113,12 @@ div.stButton > button {
     transition: 0.3s ease;
 }
 
-/* Hover */
 div.stButton > button:hover {
 
     transform: scale(1.02);
 
     box-shadow:
         0px 0px 25px rgba(59,130,246,0.5);
-}
-
-/* Select Box */
-.stSelectbox div[data-baseweb="select"] {
-
-    background: rgba(255,255,255,0.08);
-
-    border-radius: 15px;
 }
 
 /* Audio */
@@ -160,9 +159,10 @@ and generate translated voice audio using AI.
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LANGUAGE OPTIONS
+# LANGUAGES
 # =========================================================
 languages = {
+
     "English": "en",
     "Telugu": "te",
     "Hindi": "hi",
@@ -180,7 +180,13 @@ languages = {
 # =========================================================
 uploaded_file = st.file_uploader(
     "📂 Upload Video File",
-    type=["mp4", "mkv", "avi", "mov"]
+    type=[
+        "mp4",
+        "mkv",
+        "avi",
+        "mov",
+        "webm"
+    ]
 )
 
 # =========================================================
@@ -222,6 +228,8 @@ def extract_audio(video_file):
 
         "ffmpeg",
 
+        "-y",
+
         "-i", video_path,
 
         "-vn",
@@ -235,12 +243,26 @@ def extract_audio(video_file):
         audio_path
     ]
 
-    subprocess.run(
+    result = subprocess.run(
         command,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=True
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
     )
+
+    # Check FFmpeg result
+    if result.returncode != 0:
+
+        raise Exception(
+            f"FFmpeg Error:\n\n{result.stderr}"
+        )
+
+    # Ensure audio file exists
+    if not os.path.exists(audio_path):
+
+        raise Exception(
+            "Audio extraction failed."
+        )
 
     return audio_path, temp_dir
 
@@ -263,11 +285,15 @@ def transcribe_audio(audio_path):
 
     except sr.UnknownValueError:
 
-        return None
+        raise Exception(
+            "Speech could not be understood."
+        )
 
     except sr.RequestError:
 
-        return None
+        raise Exception(
+            "Google Speech Recognition API unavailable."
+        )
 
 # =========================================================
 # TRANSLATE TEXT
@@ -319,9 +345,9 @@ if st.button("🚀 Translate Video"):
 
         try:
 
-            # ============================================
-            # AUDIO EXTRACTION
-            # ============================================
+            # =============================================
+            # EXTRACT AUDIO
+            # =============================================
             with st.spinner(
                 "🎵 Extracting audio from video..."
             ):
@@ -331,12 +357,12 @@ if st.button("🚀 Translate Video"):
                 )
 
             st.success(
-                "Audio extracted successfully!"
+                "✅ Audio extracted successfully!"
             )
 
-            # ============================================
-            # TRANSCRIPTION
-            # ============================================
+            # =============================================
+            # TRANSCRIBE
+            # =============================================
             with st.spinner(
                 "📝 Transcribing speech..."
             ):
@@ -345,23 +371,15 @@ if st.button("🚀 Translate Video"):
                     audio_path
                 )
 
-            if not transcript:
-
-                st.error(
-                    "❌ Failed to transcribe audio."
-                )
-
-                st.stop()
-
             st.subheader(
                 "📄 Transcript"
             )
 
             st.write(transcript)
 
-            # ============================================
-            # TRANSLATION
-            # ============================================
+            # =============================================
+            # TRANSLATE
+            # =============================================
             with st.spinner(
                 "🌍 Translating text..."
             ):
@@ -377,9 +395,9 @@ if st.button("🚀 Translate Video"):
 
             st.write(translated_text)
 
-            # ============================================
-            # GENERATE AUDIO
-            # ============================================
+            # =============================================
+            # TEXT TO SPEECH
+            # =============================================
             with st.spinner(
                 "🔊 Generating translated audio..."
             ):
@@ -393,18 +411,18 @@ if st.button("🚀 Translate Video"):
                 "✅ Translation completed!"
             )
 
-            # ============================================
+            # =============================================
             # AUDIO PLAYER
-            # ============================================
+            # =============================================
             st.subheader(
                 "🎧 Listen to Translated Audio"
             )
 
             st.audio(translated_audio)
 
-            # ============================================
+            # =============================================
             # DOWNLOAD BUTTON
-            # ============================================
+            # =============================================
             with open(
                 translated_audio,
                 "rb"
@@ -417,12 +435,6 @@ if st.button("🚀 Translate Video"):
                     mime="audio/mp3"
                 )
 
-        except subprocess.CalledProcessError:
-
-            st.error(
-                "❌ FFmpeg failed to process the video."
-            )
-
         except Exception as e:
 
             st.error(
@@ -431,6 +443,9 @@ if st.button("🚀 Translate Video"):
 
         finally:
 
+            # =============================================
+            # CLEANUP
+            # =============================================
             try:
 
                 if temp_dir and os.path.exists(temp_dir):
